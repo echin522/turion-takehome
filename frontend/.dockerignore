@@ -1,0 +1,8 @@
+# ignore local dependencies and build artefacts
+node_modules
+.next
+.DS_Store
+
+# ignore docker files themselves
+Dockerfile*
+docker-compose*

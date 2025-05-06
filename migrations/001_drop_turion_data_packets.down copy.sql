@@ -1,0 +1,1 @@
+DROP TABLE public.turion_data_packets;

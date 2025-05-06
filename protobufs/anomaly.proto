@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package turiondatapacket;
+
+option go_package = "backend/internal/turiondatapacket;turiondatapacket";
+
+// Enum for telemetry message field names. Used for identifying anomalies.
+enum Field {
+  // must start at 0
+  FIELD_UNSPECIFIED = 0;
+  TEMPERATURE       = 1;
+  BATTERY           = 2;
+  ALTITUDE          = 3;
+  SIGNAL            = 4;
+}
+
+// Anomaly represents a single out-of-range reading.
+message Anomaly {
+  float value      = 1 [json_name = "value"];
+  uint64 timestamp = 2 [json_name = "timestamp"];
+  Field field      = 3 [json_name = "field"];
+}

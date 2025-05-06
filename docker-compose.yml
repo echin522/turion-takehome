@@ -1,0 +1,102 @@
+version: "3.8"
+services:
+  # TODO: implement actual credentials for this
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpass
+      POSTGRES_DB: turion-takehome
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pguser -d turion-takehome"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # You have no idea the pain this caused me just for it to not work
+  # migrator:
+  #   image: migrate/migrate:v4.15.2
+  #   depends_on:
+  #     database:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./database/migrations:/migrations
+  #   entrypoint:
+  #     - migrate
+  #     - -source
+  #     - file:///migrations
+  #     - -database
+  #     - postgresql://pguser:pgpass@database:5432/turion-takehome?sslmode=disable
+  #     - up
+
+  telemetrygateway:
+    build:
+      context: backend/
+      dockerfile: Dockerfile
+      args:
+        PROG_PATH: cmd/telemetrygateway/main.go
+
+    image: turion-takehome-telemetrygateway:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations
+    environment:
+      PG_HOST_URL: postgres://pguser:pgpass@db:5432/turion-takehome?sslmode=disable
+      TELEMETRY_API_SERVER_URL: "http://telemetryapi:8090"
+      GROUND_STATION_EMULATOR_ADDRESS: ":8089"
+    ports:
+      - "8080:8080"
+
+  telemetrygenerator:
+    build:
+      context: backend/
+      dockerfile: Dockerfile
+      args:
+        PROG_PATH: cmd/telemetrygenerator/main.go
+    image: turion-takehome-telemetrygenerator:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8089:8089/udp"
+    environment:
+      TELEMETRY_GATEWAY_SERVICE_NAME: "telemetrygateway"
+      GROUND_STATION_EMULATOR_ADDRESS: ":8089"
+    entrypoint: ["/app/bin/telemetrygenerator"]
+
+  telemetryapi:
+    build:
+      context: backend/
+      dockerfile: Dockerfile
+      args:
+        PROG_PATH: cmd/telemetryapi/main.go
+    image: turion-takehome-telemetryapi:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8090:8090"
+    environment:
+      PG_HOST_URL: postgres://pguser:pgpass@db:5432/turion-takehome?sslmode=disable
+    entrypoint: ["/app/bin/telemetryapi"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: turion-takehome-frontend:latest
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://telemetryapi:8090
+    depends_on:
+      - telemetryapi
+
+volumes:
+  postgres-data:
